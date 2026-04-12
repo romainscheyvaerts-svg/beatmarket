@@ -4,14 +4,21 @@
 
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY manquant dans les variables d\'environnement');
+// Initialisation lazy — ne crash pas au build si la clé est absente
+function getStripeClient(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY manquant dans les variables d\'environnement');
+  }
+  return new Stripe(key, {
+    apiVersion: '2024-04-10',
+    typescript: true,
+  });
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-04-10',
-  typescript: true,
-});
+export const stripe = typeof process.env.STRIPE_SECRET_KEY === 'string'
+  ? getStripeClient()
+  : (null as unknown as Stripe);
 
 /**
  * Calcule la commission plateforme
