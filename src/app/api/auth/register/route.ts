@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createHash } from 'crypto';
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex');
-}
+import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,7 +47,7 @@ export async function POST(request: NextRequest) {
         email,
         displayName,
         name: displayName,
-        passwordHash: hashPassword(password),
+        passwordHash: await bcrypt.hash(password, 12),
         role: role === 'PRODUCER' ? 'PRODUCER' : 'BUYER',
         paypalEmail: paypalEmail || null,
         paypalPayoutPreferred: paypalPayoutPreferred || false,
@@ -66,11 +63,28 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ 
-      success: true,
-      user,
-      message: 'Compte créé avec succès'
-    }, { status: 201 });
+    // Create session immediately after registration
+    const sessionToken = randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    await prisma.session.create({
+      data: { sessionToken, userId: user.id, expires },
+    });
+
+    const response = NextResponse.json(
+      { success: true, user, message: 'Compte créé avec succès' },
+      { status: 201 }
+    );
+
+    response.cookies.set('session-token', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires,
+      path: '/',
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Register error:', error);

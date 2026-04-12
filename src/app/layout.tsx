@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import AudioPlayer from '@/components/audio/AudioPlayer';
-
-const inter = Inter({ subsets: ['latin'] });
+import Header from '@/components/layout/Header';
 
 export const metadata: Metadata = {
   title: {
@@ -55,14 +53,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className="dark">
-      <body className={`${inter.className} min-h-screen bg-gray-950 text-white`}>
-        {/* Header sera ajouté ici */}
-        
+      <body className="min-h-screen bg-gray-950 text-white font-sans antialiased">
+        <Header />
+
         <main className="min-h-screen">
           {children}
         </main>
-
-        {/* Footer sera ajouté ici */}
 
         {/* Lecteur audio persistant — toujours visible en bas */}
         <AudioPlayer />
