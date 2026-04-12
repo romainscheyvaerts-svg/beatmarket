@@ -43,8 +43,14 @@ model User {
   stripeConnectId      String?  @unique // Pour recevoir les paiements (Connect)
   stripeOnboardingDone Boolean  @default(false)
   
-  // PayPal
+  // PayPal (pour recevoir les paiements)
   paypalEmail   String?
+  paypalPayoutPreferred Boolean @default(false) // true = paiement via PayPal
+  
+  // Abonnement producteur (5€/mois)
+  subscriptionStatus    String?   // "active", "canceled", "past_due", "trialing"
+  subscriptionId        String?   @unique // ID Stripe Subscription
+  subscriptionEndDate   DateTime? // Date fin abonnement
   
   // RGPD
   gdprConsent         Boolean   @default(false)
@@ -114,6 +120,19 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+  @@map("password_reset_tokens")
 }
 
 // ============================================================================
