@@ -4,7 +4,14 @@
 
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resendInstance: Resend | null = null;
+
+function getResend(): Resend {
+  if (!resendInstance) {
+    resendInstance = new Resend(process.env.RESEND_API_KEY || '');
+  }
+  return resendInstance;
+}
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@beatmarket.com';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -16,7 +23,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   const resetUrl = `${APP_URL}/reset-password?token=${token}`;
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: `BeatMarket <${FROM_EMAIL}>`,
       to: email,
       subject: 'Réinitialiser votre mot de passe — BeatMarket',
