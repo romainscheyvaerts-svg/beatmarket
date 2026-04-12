@@ -1,0 +1,439 @@
+// ============================================================================
+// 🎵 BeatMarket — Schéma de Base de Données
+// ============================================================================
+// PostgreSQL via Supabase + Prisma ORM
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// 👤 USERS — Utilisateurs (Acheteurs + Producteurs)
+// ============================================================================
+
+enum UserRole {
+  BUYER      // Artiste/Acheteur
+  PRODUCER   // Producteur/Beatmaker
+  ADMIN      // Administrateur plateforme
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  name          String?
+  displayName   String?   @unique // Nom d'artiste/producteur
+  avatar        String?   // URL avatar
+  bio           String?   @db.Text
+  role          UserRole  @default(BUYER)
+  country       String?   @db.VarChar(2) // Code ISO (FR, BE, etc.)
+  city          String?
+  website       String?
+  
+  // Stripe Connect (pour les producteurs)
+  stripeCustomerId     String?  @unique // Pour les achats
+  stripeConnectId      String?  @unique // Pour recevoir les paiements (Connect)
+  stripeOnboardingDone Boolean  @default(false)
+  
+  // PayPal
+  paypalEmail   String?
+  
+  // RGPD
+  gdprConsent         Boolean   @default(false)
+  gdprConsentDate     DateTime?
+  marketingConsent    Boolean   @default(false)
+  dataExportRequested DateTime?
+  deletionRequested   DateTime?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLogin DateTime?
+  
+  // Relations
+  tracks        Track[]         // Tracks uploadées (producteur)
+  orders        Order[]         // Commandes passées (acheteur)
+  payouts       Payout[]        // Versements reçus (producteur)
+  favorites     Favorite[]
+  cartItems     CartItem[]
+  sessions      Session[]
+  accounts      Account[]
+  
+  @@index([email])
+  @@index([role])
+  @@index([stripeConnectId])
+  @@map("users")
+}
+
+// ============================================================================
+// 🔐 AUTH — Sessions et comptes OAuth (NextAuth.js)
+// ============================================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================================
+// 🎵 TRACKS — Beats / Instrumentales
+// ============================================================================
+
+enum TrackStatus {
+  DRAFT       // Brouillon
+  PROCESSING  // En cours de traitement (upload)
+  PUBLISHED   // Publiée et visible
+  SOLD_OUT    // Vendue en exclusivité
+  ARCHIVED    // Archivée
+}
+
+enum MusicKey {
+  C_MAJOR
+  C_MINOR
+  C_SHARP_MAJOR
+  C_SHARP_MINOR
+  D_MAJOR
+  D_MINOR
+  D_SHARP_MAJOR
+  D_SHARP_MINOR
+  E_MAJOR
+  E_MINOR
+  F_MAJOR
+  F_MINOR
+  F_SHARP_MAJOR
+  F_SHARP_MINOR
+  G_MAJOR
+  G_MINOR
+  G_SHARP_MAJOR
+  G_SHARP_MINOR
+  A_MAJOR
+  A_MINOR
+  A_SHARP_MAJOR
+  A_SHARP_MINOR
+  B_MAJOR
+  B_MINOR
+}
+
+model Track {
+  id          String      @id @default(cuid())
+  slug        String      @unique
+  title       String
+  description String?     @db.Text
+  
+  // Producteur
+  producerId  String
+  producer    User        @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  
+  // Métadonnées audio
+  bpm         Int?
+  musicKey    MusicKey?
+  genre       String?     // "Trap", "Drill", "Afrobeat", etc.
+  mood        String?     // "Dark", "Chill", "Energetic", etc.
+  tags        String[]    // Tags libres
+  duration    Int?        // Durée en secondes
+  
+  // Fichiers
+  coverArt       String?  // URL image de couverture
+  previewUrl     String?  // URL MP3 preview (watermarked)
+  waveformData   Json?    // Données peaks pour waveform
+  
+  // Fichiers originaux (stockés sur S3, jamais exposés directement)
+  mp3FileKey     String?  // Clé S3 du fichier MP3 HQ
+  wavFileKey     String?  // Clé S3 du fichier WAV
+  stemsFileKey   String?  // Clé S3 du ZIP des stems
+  
+  // Prix par type de licence (en centimes EUR)
+  priceMp3Lease      Int?   // ex: 2999 = 29.99€
+  priceWavLease      Int?   // ex: 4999 = 49.99€
+  priceUnlimited     Int?   // ex: 9999 = 99.99€
+  priceExclusive     Int?   // ex: 29999 = 299.99€
+  
+  // Statut
+  status      TrackStatus @default(DRAFT)
+  isExclusiveSold Boolean @default(false)
+  
+  // Statistiques
+  playCount   Int         @default(0)
+  likeCount   Int         @default(0)
+  
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  publishedAt DateTime?
+  
+  // Relations
+  licenses    LicenseTemplate[]
+  orderItems  OrderItem[]
+  favorites   Favorite[]
+  cartItems   CartItem[]
+  
+  @@index([producerId])
+  @@index([genre])
+  @@index([bpm])
+  @@index([musicKey])
+  @@index([status])
+  @@index([createdAt])
+  @@index([playCount])
+  @@map("tracks")
+}
+
+// ============================================================================
+// 📜 LICENSES — Templates de licences configurables par producteur
+// ============================================================================
+
+enum LicenseType {
+  MP3_LEASE    // Licence MP3 basique
+  WAV_LEASE    // Licence WAV
+  UNLIMITED    // Licence illimitée
+  EXCLUSIVE    // Licence exclusive (transfert de droits)
+}
+
+model LicenseTemplate {
+  id          String      @id @default(cuid())
+  trackId     String
+  track       Track       @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  
+  type        LicenseType
+  name        String      // "MP3 Lease", "Premium WAV", etc.
+  price       Int         // Prix en centimes EUR
+  
+  // Termes de la licence
+  maxStreams          Int?     // Nombre max de streams autorisés
+  maxDistributions    Int?     // Nombre max de distributions (copies)
+  maxMusicVideos      Int?     // Nombre max de clips
+  maxPerformances     Int?     // Nombre max de performances live
+  allowProfit         Boolean  @default(true)
+  allowRadioBroadcast Boolean  @default(false)
+  isExclusive         Boolean  @default(false)
+  
+  // Fichiers inclus
+  includesMp3    Boolean @default(true)
+  includesWav    Boolean @default(false)
+  includesStems  Boolean @default(false)
+  
+  // Termes personnalisés
+  customTerms    String? @db.Text
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  orderItems OrderItem[]
+  
+  @@unique([trackId, type])
+  @@map("license_templates")
+}
+
+// ============================================================================
+// 🛒 CART — Panier d'achat
+// ============================================================================
+
+model CartItem {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackId     String
+  track       Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  
+  licenseType LicenseType
+  price       Int      // Prix au moment de l'ajout (centimes EUR)
+  
+  createdAt   DateTime @default(now())
+  
+  @@unique([userId, trackId, licenseType])
+  @@map("cart_items")
+}
+
+// ============================================================================
+// 📦 ORDERS — Commandes
+// ============================================================================
+
+enum OrderStatus {
+  PENDING          // En attente de paiement
+  PROCESSING       // Paiement reçu, en cours de traitement
+  COMPLETED        // Terminée, fichiers disponibles
+  FAILED           // Échec du paiement
+  REFUNDED         // Remboursée
+  PARTIALLY_REFUNDED
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  orderNumber       String      @unique // Format: BM-2024-XXXXX
+  
+  // Acheteur
+  buyerId           String
+  buyer             User        @relation(fields: [buyerId], references: [id])
+  
+  // Montants (en centimes EUR)
+  subtotal          Int         // Sous-total HT
+  vatAmount         Int         // Montant TVA
+  vatRate           Decimal     @db.Decimal(5, 4) // ex: 0.2000 pour 20%
+  totalAmount       Int         // Total TTC
+  platformFee       Int         // Commission plateforme
+  
+  // Informations fiscales
+  buyerCountry      String      @db.VarChar(2) // Pays de l'acheteur pour TVA
+  buyerVatNumber    String?     // Numéro TVA intra (B2B)
+  invoiceNumber     String?     @unique // Numéro de facture
+  
+  // Paiement
+  stripePaymentId      String?  @unique
+  stripeCheckoutId     String?
+  paypalTransactionId  String?
+  paymentMethod        String?  // "stripe" | "paypal"
+  
+  // Statut
+  status            OrderStatus @default(PENDING)
+  
+  // Fichiers
+  invoicePdfUrl     String?     // URL du PDF facture
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  completedAt       DateTime?
+  
+  // Relations
+  items             OrderItem[]
+  
+  @@index([buyerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String        @id @default(cuid())
+  orderId         String
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  // Track achetée
+  trackId         String
+  track           Track         @relation(fields: [trackId], references: [id])
+  
+  // Licence
+  licenseId       String
+  license         LicenseTemplate @relation(fields: [licenseId], references: [id])
+  licenseType     LicenseType
+  
+  // Prix au moment de l'achat
+  price           Int           // Prix en centimes EUR
+  
+  // Producteur (dénormalisé pour les requêtes de payout)
+  producerId      String
+  
+  // Fichiers de licence
+  licensePdfUrl   String?       // URL du contrat PDF généré
+  
+  // Téléchargements
+  downloadCount   Int           @default(0)
+  maxDownloads    Int           @default(3)
+  downloadExpiry  DateTime?     // Expiration du lien de téléchargement
+  
+  createdAt       DateTime      @default(now())
+  
+  @@index([orderId])
+  @@index([producerId])
+  @@map("order_items")
+}
+
+// ============================================================================
+// 💸 PAYOUTS — Versements aux producteurs
+// ============================================================================
+
+enum PayoutStatus {
+  PENDING     // En attente
+  PROCESSING  // En cours de traitement
+  COMPLETED   // Versé
+  FAILED      // Échec
+}
+
+model Payout {
+  id                String       @id @default(cuid())
+  
+  // Producteur
+  producerId        String
+  producer          User         @relation(fields: [producerId], references: [id])
+  
+  // Montant
+  grossAmount       Int          // Montant brut des ventes (centimes)
+  platformFee       Int          // Commission plateforme (centimes)
+  stripeFee         Int          // Frais Stripe (centimes)
+  netAmount         Int          // Montant net versé (centimes)
+  
+  // Détails Stripe
+  stripeTransferId  String?      @unique
+  
+  // Période couverte
+  periodStart       DateTime
+  periodEnd         DateTime
+  
+  // Statut
+  status            PayoutStatus @default(PENDING)
+  
+  // Timestamps
+  createdAt         DateTime     @default(now())
+  processedAt       DateTime?
+  
+  @@index([producerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payouts")
+}
+
+// ============================================================================
+// ❤️ FAVORITES — Favoris
+// ============================================================================
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, trackId])
+  @@map("favorites")
+}
