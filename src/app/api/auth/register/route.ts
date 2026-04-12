@@ -74,8 +74,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Register error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
     return NextResponse.json(
-      { error: { message: 'Erreur interne du serveur' } },
+      { error: { message: `Erreur interne du serveur: ${errorMessage}` } },
       { status: 500 }
     );
   }
