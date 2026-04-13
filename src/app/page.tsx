@@ -28,9 +28,9 @@ export default function HomePage() {
                 placeholder="Rechercher par genre, mood, BPM..."
                 className="w-full rounded-xl border border-gray-700 bg-gray-900/80 backdrop-blur px-6 py-4 text-white placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
               />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-violet-600 hover:bg-violet-500 px-6 py-2 text-sm font-semibold text-white transition-colors">
-                Rechercher
-              </button>
+              <a href="/beats" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-violet-600 hover:bg-violet-500 px-6 py-2 text-sm font-semibold text-white transition-colors">
+                Explorer
+              </a>
             </div>
           </div>
 
