@@ -59,16 +59,6 @@ const nextConfig = {
     ];
   },
 
-  // Redirections
-  async redirects() {
-    return [
-      {
-        source: '/dashboard',
-        destination: '/dashboard/overview',
-        permanent: true,
-      },
-    ];
-  },
 
   // Configuration expérimentale
   experimental: {
