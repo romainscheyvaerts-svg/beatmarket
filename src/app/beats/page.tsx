@@ -122,7 +122,7 @@ export default function BeatsPage() {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const genres = [...new Set(tracks.map(t => t.genre).filter(Boolean))];
+  const genres = Array.from(new Set(tracks.map(t => t.genre).filter(Boolean)));
   const filteredTracks = filterGenre
     ? tracks.filter(t => t.genre === filterGenre)
     : tracks;
