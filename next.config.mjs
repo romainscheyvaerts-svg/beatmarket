@@ -59,7 +59,6 @@ const nextConfig = {
     ];
   },
 
-
   // Configuration expérimentale
   experimental: {
     // Optimiser les imports de packages
