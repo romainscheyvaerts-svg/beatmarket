@@ -143,33 +143,30 @@ export default function UploadPage() {
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('title', title.trim());
-      formData.append('description', description.trim());
-      formData.append('bpm', bpm);
-      formData.append('musicKey', KEY_MAP[musicKey] || '');
-      formData.append('genre', genre);
-      formData.append('mood', mood);
-      formData.append('tags', tags);
-      formData.append('priceMp3Lease', String(Math.round(parseFloat(priceMp3 || '0') * 100)));
-      formData.append('priceWavLease', String(Math.round(parseFloat(priceWav || '0') * 100)));
-      formData.append('priceUnlimited', String(Math.round(parseFloat(priceUnlimited || '0') * 100)));
-      formData.append('priceExclusive', String(Math.round(parseFloat(priceExclusive || '0') * 100)));
-
-      if (mp3File) formData.append('mp3', mp3File);
-      if (wavFile) formData.append('wav', wavFile);
-      if (coverFile) formData.append('cover', coverFile);
-
-      // Add stems
-      stems.forEach((stem, index) => {
-        formData.append(`stem_${index}`, stem.file);
-        formData.append(`stem_${index}_label`, stem.label);
-      });
-      formData.append('stemCount', String(stems.length));
+      // Send metadata as JSON (files stored locally, uploaded later via presigned URLs)
+      const body = {
+        title: title.trim(),
+        description: description.trim(),
+        bpm,
+        musicKey: KEY_MAP[musicKey] || '',
+        genre,
+        mood,
+        tags,
+        priceMp3Lease: Math.round(parseFloat(priceMp3 || '0') * 100),
+        priceWavLease: Math.round(parseFloat(priceWav || '0') * 100),
+        priceUnlimited: Math.round(parseFloat(priceUnlimited || '0') * 100),
+        priceExclusive: Math.round(parseFloat(priceExclusive || '0') * 100),
+        hasMp3: !!mp3File,
+        hasWav: !!wavFile,
+        hasCover: !!coverFile,
+        stemCount: stems.length,
+        stemLabels: stems.map(s => s.label),
+      };
 
       const res = await fetch('/api/tracks/upload', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
