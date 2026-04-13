@@ -30,6 +30,15 @@ export default function DashboardPage() {
   const [loadingTracks, setLoadingTracks] = useState(true);
   const router = useRouter();
 
+  // Settings state
+  const [settingsName, setSettingsName] = useState('');
+  const [settingsMsg, setSettingsMsg] = useState('');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [showPaypal, setShowPaypal] = useState(false);
+  const [paypalEmail, setPaypalEmail] = useState('');
+  const [paypalSaving, setPaypalSaving] = useState(false);
+  const [showStripeInfo, setShowStripeInfo] = useState(false);
+
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
@@ -234,12 +243,18 @@ export default function DashboardPage() {
             {/* Profil */}
             <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
               <h3 className="text-lg font-semibold text-white mb-4">👤 Profil producteur</h3>
+              {settingsMsg && (
+                <div className={`mb-4 rounded-lg p-3 text-sm ${settingsMsg.includes('✅') ? 'bg-green-500/10 border border-green-500/30 text-green-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
+                  {settingsMsg}
+                </div>
+              )}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1.5">Nom d&apos;artiste</label>
                   <input
                     type="text"
-                    defaultValue={user.displayName || user.name || ''}
+                    value={settingsName || user.displayName || user.name || ''}
+                    onChange={e => setSettingsName(e.target.value)}
                     className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none"
                   />
                 </div>
@@ -252,8 +267,21 @@ export default function DashboardPage() {
                     className="w-full rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-3 text-gray-400 cursor-not-allowed"
                   />
                 </div>
-                <button className="rounded-lg bg-violet-600 hover:bg-violet-500 px-6 py-2.5 text-sm font-semibold text-white transition-colors">
-                  Sauvegarder
+                <button
+                  disabled={settingsSaving}
+                  onClick={async () => {
+                    setSettingsSaving(true); setSettingsMsg('');
+                    try {
+                      const res = await fetch('/api/auth/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: settingsName || user.displayName }) });
+                      const data = await res.json();
+                      if (res.ok) { setSettingsMsg('✅ Profil mis à jour !'); setUser({ ...user, displayName: data.user.displayName }); }
+                      else setSettingsMsg(data.error?.message || 'Erreur');
+                    } catch { setSettingsMsg('Erreur de connexion'); }
+                    finally { setSettingsSaving(false); }
+                  }}
+                  className="rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-gray-700 px-6 py-2.5 text-sm font-semibold text-white transition-colors"
+                >
+                  {settingsSaving ? 'Sauvegarde...' : 'Sauvegarder'}
                 </button>
               </div>
             </div>
@@ -262,29 +290,90 @@ export default function DashboardPage() {
             <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
               <h3 className="text-lg font-semibold text-white mb-4">💰 Paiements</h3>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-lg border border-gray-700 bg-gray-800">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">💳</span>
-                    <div>
-                      <p className="text-sm font-medium text-white">Stripe Connect</p>
-                      <p className="text-xs text-gray-400">Carte bancaire — Paiements automatiques</p>
+                {/* Stripe Connect */}
+                <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">💳</span>
+                      <div>
+                        <p className="text-sm font-medium text-white">Stripe Connect</p>
+                        <p className="text-xs text-gray-400">Carte bancaire — Paiements automatiques</p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => setShowStripeInfo(!showStripeInfo)}
+                      className="text-sm text-violet-400 hover:text-violet-300 font-medium"
+                    >
+                      {showStripeInfo ? 'Fermer' : 'Configurer'}
+                    </button>
                   </div>
-                  <button className="text-sm text-violet-400 hover:text-violet-300 font-medium">
-                    Configurer
-                  </button>
+                  {showStripeInfo && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-4">
+                        <p className="text-sm text-violet-300 mb-2 font-medium">🔗 Stripe Connect</p>
+                        <p className="text-xs text-gray-400 mb-3">
+                          Stripe Connect permet de recevoir automatiquement vos paiements de ventes de beats directement sur votre compte bancaire.
+                          La configuration sera finalisée lors de la mise en production.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                            ⏳ Bientôt disponible
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between p-4 rounded-lg border border-gray-700 bg-gray-800">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">🅿️</span>
-                    <div>
-                      <p className="text-sm font-medium text-white">PayPal</p>
-                      <p className="text-xs text-gray-400">Paiements via email PayPal</p>
+
+                {/* PayPal */}
+                <div className="p-4 rounded-lg border border-gray-700 bg-gray-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">🅿️</span>
+                      <div>
+                        <p className="text-sm font-medium text-white">PayPal</p>
+                        <p className="text-xs text-gray-400">
+                          {paypalEmail ? `Configuré : ${paypalEmail}` : 'Paiements via email PayPal'}
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => setShowPaypal(!showPaypal)}
+                      className="text-sm text-violet-400 hover:text-violet-300 font-medium"
+                    >
+                      {showPaypal ? 'Fermer' : paypalEmail ? 'Modifier' : 'Configurer'}
+                    </button>
                   </div>
-                  <button className="text-sm text-violet-400 hover:text-violet-300 font-medium">
-                    Configurer
-                  </button>
+                  {showPaypal && (
+                    <div className="mt-4 pt-4 border-t border-gray-700 space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Adresse email PayPal</label>
+                        <input
+                          type="email"
+                          value={paypalEmail}
+                          onChange={e => setPaypalEmail(e.target.value)}
+                          placeholder="votre@email-paypal.com"
+                          className="w-full rounded-lg border border-gray-600 bg-gray-900 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        disabled={paypalSaving}
+                        onClick={async () => {
+                          setPaypalSaving(true);
+                          try {
+                            const res = await fetch('/api/auth/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paypalEmail, paypalPayoutPreferred: true }) });
+                            const data = await res.json();
+                            if (res.ok) { setSettingsMsg('✅ PayPal configuré !'); setShowPaypal(false); }
+                            else setSettingsMsg(data.error?.message || 'Erreur');
+                          } catch { setSettingsMsg('Erreur de connexion'); }
+                          finally { setPaypalSaving(false); }
+                        }}
+                        className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 px-5 py-2 text-sm font-semibold text-white transition-colors"
+                      >
+                        {paypalSaving ? 'Sauvegarde...' : '✅ Enregistrer PayPal'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
